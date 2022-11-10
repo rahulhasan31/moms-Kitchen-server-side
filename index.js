@@ -1,6 +1,7 @@
 const express= require('express')
 const app= express()
 const cors= require('cors')
+const jwt = require('jsonwebtoken');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 const port= process.env.PORT || 5000
 require('dotenv').config()
@@ -17,10 +18,37 @@ console.log(process.env.USER_DB);
 const uri = `mongodb+srv://${process.env.USER_DB}:${process.env.PASSWORD_DB}@cluster0.sayatpw.mongodb.net/?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
+function verifyJWT(req, res, next){
+    const authHeader = req.headers.authorization;
+
+    if(!authHeader){
+        return res.status(401).send({message: 'unauthorized access'});
+    }
+    const token = authHeader.split(' ')[1];
+
+    jwt.verify(token, process.env.ACCESS_TOKEN, function(err, decoded){
+        if(err){
+            return res.status(403).send({message: 'Forbidden access'});
+        }
+        req.decoded = decoded;
+        next();
+    })
+}
+
 async function run(){
     try{
         const serviceCollection=client.db('photographer').collection('services')
         const reviewCollection= client.db('photographer').collection('review')
+
+        app.post('/jwt', (req, res)=>{
+            const user= req.body
+            const token= jwt.sign(user, process.env.ACCESS_TOKEN, {expiresIn: '1h'})
+            res.send({token})
+            console.log(token);
+
+           
+        })
+
         app.get('/services', async (req, res)=>{
             const query= {}
             const cursor= serviceCollection.find(query).sort({created: -1})
@@ -43,13 +71,20 @@ async function run(){
         
         app.post('/services', async(req, res)=>{
             const addServices= req.body
-            const result= await serviceCollection.insertOne(addServices)
+            const result= await serviceCollection.insertOne(addServices).sor
             res.send(result)
         })
 
         // review api????
-        app.get('/reviews', async (req, res)=>{
-      
+        app.get('/reviews', verifyJWT, async (req, res)=>{
+             console.log(req.headers.authorization);
+             const decoded=req.decoded
+             console.log(decoded);
+
+             if(decoded.email !== req.query.email ){
+                res.status(403).send({message: 'unauthorized access'})
+             }
+
             let query= {}
             if(req.query.email){
                 query ={
@@ -75,7 +110,7 @@ async function run(){
         app.get('/reviews/service/:id', async (req, res)=>{
             const id= req.params.id
            const query= {service : id}
-            const cursor= reviewCollection.find(query)
+            const cursor= reviewCollection.find(query).sort({created : -1})
             const review= await cursor.toArray()
             res.send(review)
         })
@@ -83,12 +118,13 @@ async function run(){
 
         app.post('/reviews', async(req, res)=>{
             const review= req.body
+            
             const result= await reviewCollection.insertOne(review)
             res.send(result)
         })
         
 
-        app.delete( '/reviews/:id', async (req, res)=>{
+        app.delete( '/reviews/:id', verifyJWT, async (req, res)=>{
             const id= req.params.id
             const query= {_id : ObjectId(id)}
             const result= await reviewCollection.deleteOne(query)
