@@ -23,7 +23,7 @@ async function run(){
         const reviewCollection= client.db('photographer').collection('review')
         app.get('/services', async (req, res)=>{
             const query= {}
-            const cursor= serviceCollection.find(query)
+            const cursor= serviceCollection.find(query).sort({created: -1})
             const services= await cursor.toArray()
             res.send(services)
         })
@@ -49,7 +49,7 @@ async function run(){
 
         // review api????
         app.get('/reviews', async (req, res)=>{
-            console.log(req.query.email);
+      
             let query= {}
             if(req.query.email){
                 query ={
@@ -60,8 +60,19 @@ async function run(){
             const cursor= reviewCollection.find(query)
             const review= await cursor.toArray()
             res.send(review)
+        
         })
-        app.get('/reviews/:id', async (req, res)=>{
+        app.get('/reviews/:id', async(req, res)=>{
+            const id= req.params.id
+            console.log(id);
+            const query= {_id : ObjectId(id)}
+            const reviews= await reviewCollection.findOne(query)
+            console.log(reviews);
+             res.send(reviews)
+  
+           } )     
+  
+        app.get('/reviews/service/:id', async (req, res)=>{
             const id= req.params.id
            const query= {service : id}
             const cursor= reviewCollection.find(query)
@@ -84,14 +95,8 @@ async function run(){
             res.send(result)
         })
 
-        app.get('/reviews/:id', async(req, res)=>{
-            const id= req.params.id
-            const query= {_id : ObjectId(id)}
-            const review= await reviewCollection.findOne(query)
-            console.log(review);
-            res.send(review)
+        
 
-        })
         app.put('/reviews/:id', async (req, res)=>{
             const id = req.params.id
             const query= {_id : ObjectId(id)}
